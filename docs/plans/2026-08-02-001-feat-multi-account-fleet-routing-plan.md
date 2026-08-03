@@ -11,6 +11,7 @@ upstream_base: bb5054fe47abe73ecbbd454751066a28c89f4bb9
 fork_repository: novotnyllc/codex
 branch: codex/multi-account-fleet-routing
 deepened: 2026-08-02
+updated: 2026-08-03
 ---
 
 # Multi-Account Fleet Execution - Plan
@@ -19,7 +20,7 @@ deepened: 2026-08-02
 
 - **Objective:** Let every participating task-owning Codex host enroll multiple ChatGPT subscription accounts, route each new task to an eligible account, retain existing explicit/default local or SSH execution-environment behavior, and keep the task visible and resumable through the same per-host task store, Desktop, CLI, SSH, and Remote Control surfaces.
 - **Authority:** The Product Contract owns behavior and scope. Session-settled Product and Technical Decisions override inferred assumptions. Repository guidance and current app-server v2 conventions constrain implementation details.
-- **Execution profile:** Fetch the latest `openai/codex` main, branch from that exact tip, and deliver a narrow downstream patch in dependency order. Reuse the existing auth storage, thread store, app-server v2, `EnvironmentManager`, and Remote Control transport before adding new machinery. Pin public release candidates to a reviewed stable upstream tag after the main-based development patch is proven.
+- **Execution profile:** Fetch the latest `openai/codex` main, branch from that exact tip, and deliver a narrow downstream patch in dependency order. Run most implementation, test, schema, documentation, and fix work on GPT-5.6 Luna at max effort. Reserve stronger or more expensive models for orchestration and the small number of auth, migration, security, integration, and release judgments that justify escalation. Reuse the existing auth storage, thread store, app-server v2, `EnvironmentManager`, and Remote Control transport before adding new machinery. Pin public release candidates to a reviewed stable upstream tag after the main-based development patch is proven.
 - **Stop conditions:** Run U0 before the generalized implementation. Stop before U1 if the official phone cannot match the baseline control-account surfaces for a secondary-executed ordinary task, or if no stable provider identity claim supports durable binding. Stop public distribution if service authorization or naming is not cleared. Stop live automatic routing and reassess if a subscription is flagged, suspended, or specially throttled in response to the private proof. Do not bypass any gate with credential copying, shared SQLite, a hidden transcript, or an account-unaware runtime.
 - **Tail ownership:** Completion includes migration safety, generated protocol schemas, focused and full test gates, Desktop/runtime compatibility proof, fleet smoke tests, rollback instructions, and license/notice hygiene.
 
@@ -239,6 +240,7 @@ The product therefore needs to separate three identities explicitly: task-owning
 - KTD15. **Bind login completions to one attempt.** Enrollment/reauth creates an expiring single-use attempt tied to the intended operation, target profile, and OAuth state/device-code context. Replay, cancellation, expiry, concurrent swap, or different provider identity fails before credentials are stored.
 - KTD16. **Serialize destructive lifecycle changes with outbound use.** `ProfileRequestGuard` uses the repository's existing file-lock primitive where possible to acquire a per-profile cross-process lease. Every model, MCP, and auth-capturing extension send holds a shared lease through final lifecycle/fingerprint validation and credential use. Logout/removal obtains the exclusive lease, cancels/drains earlier sends, commits state, invalidates caches, and deletes/revokes secrets before returning; if bounded drain cannot complete, the mutation fails without reporting success.
 - KTD17. **Fail closed when mutable profile state is unavailable.** If SQLite/profile registry startup fails, automatic routing and management are disabled. Only unbound legacy tasks backed by a valid implicit OAuth profile may continue; any profile-bound start/resume returns state-recovery guidance. No path silently falls back to root auth.
+- KTD18. **Default implementation to Luna Max.** (session-settled: user-directed — chosen over frontier-model implementation by default: GPT-5.6 Luna at max effort is inexpensive enough to use for most code while preserving stronger models for the few judgments that need them.) Every coding lane starts on `gpt-5.6-luna` at `max`. Escalation changes the model only for a bounded question or review, not for the entire lane.
 
 ### High-Level Technical Design
 
@@ -310,6 +312,29 @@ U3 persists task identity, then U4 closes execution-auth parity gaps.
 U5 hardens control identity and repeats the complete phone/control-reassignment matrix.
 Only after U5 passes does U6 add automatic account routing; U7 proves existing explicit/default local/SSH environment parity without another scheduler.
 U8 packages the proven behavior with compatibility and rollback controls.
+
+### Delivery Orchestration and Model Routing
+
+Use a Delivery Director to coordinate independently resumable Goal-Driven Delivery lanes. Keep one canonical writer per unit and run the smallest applicable verification before integration.
+
+| Work | Default model and effort | Escalation rule |
+|---|---|---|
+| U0-U8 implementation, focused tests, generated schemas, documentation, and review fixes | `gpt-5.6-luna`, `max` | Default for all coding; do not escalate merely because the unit is large |
+| Mechanical inventory, formatting, and schema regeneration | `gpt-5.6-luna`, `high` or `max` | Use `max` when the edit crosses contracts or generated artifacts |
+| Delivery direction, dependency arbitration, and integration synthesis | `gpt-5.6-sol`, `high` | Keep the director read-only; use `max` only for a genuine architectural conflict |
+| Auth, migration, security, cross-process, and release-critical adversarial review | `gpt-5.6-sol`, `max` | Review a bounded diff or decision after Luna Max completes the implementation |
+| Coherence, scope, documentation review, and independent secondary review | `gpt-5.6-terra`, `medium` or `high` | Prefer the lower effort that can verify the stated acceptance boundary |
+
+Start with three parallel Luna Max workers where dependencies permit and keep one slot available for direction, review, or integration. A lane escalates only after it returns concrete evidence of an unresolved cross-cutting decision, repeats the same failed approach, or reaches a security/release gate named above.
+
+### Execution Time Budget
+
+- **Target:** Complete the implementation swarm and focused local verification in 60-120 minutes of active Codex execution on a capable host.
+- **First 10 minutes:** Refresh the upstream baseline, map unit ownership, run U0's cheapest falsification checks, and dispatch the first Luna Max lanes.
+- **Next 70 minutes:** Implement dependency-ready units, integrate continuously, and run focused crate tests rather than waiting for one monolithic tail.
+- **Final 40 minutes:** Resolve review findings, run the broadest affordable local gates, commit the explicit plan-owned paths, and push the fork branch.
+- **Overrun rule:** At 120 minutes, return the exact completed units, failing command or external gate, and next executable action. Do not replace an evidence-based overrun report with a multi-week estimate.
+- **Excluded waiting:** Human OAuth/MFA/CAPTCHA steps, official-phone interaction, hosted CI queues, full-workspace build duration, signing service latency, and fleet canary observation are elapsed external waits. They remain Definition-of-Done gates but are not counted as coding time.
 
 ---
 
