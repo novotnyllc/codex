@@ -7,11 +7,11 @@ artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
 upstream_repository: openai/codex
-upstream_base: bb5054fe47abe73ecbbd454751066a28c89f4bb9
+upstream_base: 5af85998c24fb3353ddd8164c3ed472057b03cb3
 fork_repository: novotnyllc/codex
 branch: codex/multi-account-fleet-routing
 deepened: 2026-08-02
-updated: 2026-08-03
+updated: 2026-08-04
 ---
 
 # Multi-Account Fleet Execution - Plan
@@ -97,6 +97,7 @@ The product therefore needs to separate three identities explicitly: task-owning
 - R25. Development branches start from freshly fetched `openai/codex` main and are pushed to the Novotny LLC fork. Private fleet candidates pin a reviewed stable upstream tag and carry a narrow patch queue, compatibility CI, generated schemas, signed artifacts, and two-slot fork rollback. Public provenance, SBOM/license bundles, and distribution metadata become mandatory only after R27 clears. Only signed profile-aware fork builds access the live home; emergency history access is an offline read-only file export for inspection, never an account-unaware Codex runtime.
 - R26. The fork preserves Apache 2.0 `LICENSE` and `NOTICE` obligations, marks downstream changes, audits third-party notices, does not redistribute the closed Desktop application, and uses a neutral product name unless OpenAI trademark permission is obtained.
 - R27. Public distribution is gated on a separate service-authorization review for first-party subscription OAuth; this does not block private proof or the generic local architecture.
+- R28. `origin/main` remains the read-only OpenAI upstream reference and `novotny/main` is the canonical downstream integration branch containing the reviewed fleet patch and this plan. A daily scheduled sync fetches both remotes, creates a dated `codex/upstream-sync-*` branch from `novotny/main`, merges the fetched `origin/main` without rewriting published downstream history, runs the minimum affected compatibility and schema gates, and opens or refreshes one reviewable PR into `novotny/main`. The job never force-pushes `main`, never resolves conflicts or accepts generated diffs unattended, and never promotes a failing sync. Feature branches rebase on the latest downstream `novotny/main` before merge; release records pin both the incorporated upstream commit and downstream commit range.
 
 ### Key Decisions
 
@@ -160,6 +161,7 @@ The product therefore needs to separate three identities explicitly: task-owning
 - AE11. **Atomic control reassignment:** Given active tasks and control profile A, changing control to B succeeds only after B's enrollment is healthy and a daemon restart completes; failed pairing or restart leaves A in control and never changes task bindings.
 - AE12. **Cross-process invalidation:** Given processes P1 and P2 share the home, after P1 logs out or removes profile B successfully, P2 cannot issue another request with B; concurrent role and scheduler updates fail closed on stale versions.
 - AE13. **No implicit OAuth profile:** Given a pre-feature task on an API-key or unauthenticated root, its first upgraded continuation stops before outbound work, requires local ChatGPT OAuth enrollment and explicit profile selection, appends that exact binding, and later restart/reindex resumes only that profile.
+- AE14. **Daily upstream integration:** Given new commits on `origin/main`, when the scheduled sync runs, then it produces one dated branch and PR whose receipt records the old/new upstream tips, downstream base, merge result, changed subsystem map, focused gates, generated-file status, and unresolved conflicts. A clean passing sync may be merged into `novotny/main`; a conflict, schema drift, or failed gate leaves downstream `main` unchanged and requires a bounded human resolution.
 
 ### Success Criteria
 
@@ -241,6 +243,7 @@ The product therefore needs to separate three identities explicitly: task-owning
 - KTD16. **Serialize destructive lifecycle changes with outbound use.** `ProfileRequestGuard` uses the repository's existing file-lock primitive where possible to acquire a per-profile cross-process lease. Every model, MCP, and auth-capturing extension send holds a shared lease through final lifecycle/fingerprint validation and credential use. Logout/removal obtains the exclusive lease, cancels/drains earlier sends, commits state, invalidates caches, and deletes/revokes secrets before returning; if bounded drain cannot complete, the mutation fails without reporting success.
 - KTD17. **Fail closed when mutable profile state is unavailable.** If SQLite/profile registry startup fails, automatic routing and management are disabled. Only unbound legacy tasks backed by a valid implicit OAuth profile may continue; any profile-bound start/resume returns state-recovery guidance. No path silently falls back to root auth.
 - KTD18. **Default implementation to Luna Max.** (session-settled: user-directed — chosen over frontier-model implementation by default: GPT-5.6 Luna at max effort is inexpensive enough to use for most code while preserving stronger models for the few judgments that need them.) Every coding lane starts on `gpt-5.6-luna` at `max`. Escalation changes the model only for a bounded question or review, not for the entire lane.
+- KTD19. **Integrate upstream by PR, not by rewriting downstream main.** Keep the two-remotes topology explicit: `origin` is OpenAI and `novotny` is the maintained fork. `novotny/main` carries the accepted downstream patch; daily automation merges the fetched `origin/main` into a temporary sync branch and proposes that merge to downstream main. Rebase unpublished feature branches only. Record the upstream merge-base and downstream-only range so drift, conflicts, and release provenance remain inspectable.
 
 ### High-Level Technical Design
 
@@ -423,11 +426,11 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 ### U8. Fork release, Desktop adapter, and rollback
 
 - **Goal:** Make the downstream patch maintainable and safely installable across the fleet without redistributing closed OpenAI assets.
-- **Requirements:** R16, R17, R25-R27.
+- **Requirements:** R16, R17, R25-R28.
 - **Dependencies:** U5 gate passed; U6 and U7 for full feature release.
 - **Files:** `LICENSE`, `NOTICE`, `codex-rs/app-server/README.md`, `codex-rs/app-server-daemon/README.md`, `codex-rs/app-server-daemon/src/`, `codex-rs/cli/src/remote_control_cmd.rs`, packaging/release configuration already used by the repository, `.github/workflows/` compatibility jobs, downstream install/rollback documentation under `docs/`.
-- **Approach:** Keep `origin` at `openai/codex`, `novotny` at `novotnyllc/codex`, and branch from fetched `origin/main`. Maintain a short patch queue and cut private candidates from reviewed stable tags. Install one signed verifier/launcher at an OS-managed path outside `CODEX_HOME`; Desktop and daemon both call it. The launcher validates current/previous slots against a pinned trust root and switches slots atomically. Patch the daemon's hard-coded standalone-package path and top-level Remote Control/bootstrap flow so no upstream updater or `CODEX_HOME/packages/standalone/current/codex` binary bypasses/replaces the launcher. Release keys are hardware/KMS-backed and restricted to approved release jobs. If both slots fail, stop execution and export credential-free history read-only. Generate public provenance/SBOM/license bundles only after R27 clears.
-- **Test scenarios:** Stable-tag rebase, schema diff, signed provenance, reject relative/tampered/world-writable overrides and config-supplied trust-root changes, non-release workflows cannot sign, key rotation/revocation drill, atomic current/previous switch, Desktop and daemon resolve the same binary, upstream bootstrap/update is disabled, install on each host class, Desktop launch/task/resume, CLI/TUI/exec, SSH app-server, daemon Remote Control, canary upgrade, previous-fork rollback, forward/backward SQLite compatibility, and credential-free history export with no Codex runtime launch.
+- **Approach:** Keep `origin` at `openai/codex` and `novotny` at `novotnyllc/codex`. Merge this reviewed feature branch into downstream `novotny/main`, then use KTD19's daily temporary-branch PR flow to incorporate upstream without force-pushing downstream main. Classify the upstream diff before testing: documentation-only changes get structural checks; touched Rust crates get their focused tests; protocol/config changes regenerate and compare their schemas; auth, state, app-server, Remote Control, packaging, or updater changes trigger the matching fleet compatibility gate. Batch one coherent upstream delta per PR and run the full workspace/native/fleet/release gates only for a release candidate or when the affected-subsystem map requires them. Maintain a short downstream patch range and cut private candidates from reviewed stable tags. Install one signed verifier/launcher at an OS-managed path outside `CODEX_HOME`; Desktop and daemon both call it. The launcher validates current/previous slots against a pinned trust root and switches slots atomically. Patch the daemon's hard-coded standalone-package path and top-level Remote Control/bootstrap flow so no upstream updater or `CODEX_HOME/packages/standalone/current/codex` binary bypasses/replaces the launcher. Release keys are hardware/KMS-backed and restricted to approved release jobs. If both slots fail, stop execution and export credential-free history read-only. Generate public provenance/SBOM/license bundles only after R27 clears.
+- **Test scenarios:** AE14; clean daily upstream merge; no-op day; concurrent run coalescing; upstream history rewrite detection; merge conflict; generated schema drift; focused-gate failure; stale PR supersession; protected downstream main and no force-push; downstream feature rebase before merge; stable-tag release provenance; schema diff; signed provenance; reject relative/tampered/world-writable overrides and config-supplied trust-root changes; non-release workflows cannot sign; key rotation/revocation drill; atomic current/previous switch; Desktop and daemon resolve the same binary; upstream bootstrap/update is disabled; install on each host class; Desktop launch/task/resume; CLI/TUI/exec; SSH app-server; daemon Remote Control; canary upgrade; previous-fork rollback; forward/backward SQLite compatibility; and credential-free history export with no Codex runtime launch.
 - **Verification:** The compatibility matrix, trust-root tests, two-slot rollback, and recovery export pass on a canary before fleet rollout; any public distribution contains required provenance/license/notice/change disclosures and no closed Desktop files.
 
 ---
@@ -452,6 +455,7 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 | Experimental schemas | `just write-app-server-schema --experimental` | Experimental account/thread/environment fields | Checked-in experimental schemas match generated output |
 | Config schema | `just write-config-schema` | Only if `config.toml` gains routing fields | Checked-in schema matches generated output |
 | Workspace regression | `just test` | Final candidate | Full suite passes after the implementer obtains the repository-required approval |
+| Daily upstream sync | Fetch both remotes; merge fetched `origin/main` into a dated branch from `novotny/main`; run affected gates | U8 / each upstream delta | One inspectable PR/receipt; downstream main unchanged on conflicts or failures; no force-push |
 
 ### Behavioral Proof Gates
 
@@ -459,7 +463,8 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 - **Persistence proof:** Kill at each binding/projection boundary, restart app-server, rebuild SQLite from rollouts, change default/control roles, and re-run AE1-AE3, AE9, AE12, and AE13.
 - **Official-client proof:** On the real fleet, run the complete AE4 surface matrix and AE11 from the official phone and Desktop local/SSH connections using the forked binary. Local mocks or transient connection visibility do not satisfy this gate.
 - **Fleet proof:** Run AE7-AE8 on at least one local, one macOS SSH, and one other supported host class used by the fleet.
-- **Release proof:** Install a signed canary, update once, rebase once, switch back to the previous signed fork, and complete AE10 before wider rollout.
+- **Upstream-sync proof:** Complete AE14 once with a clean upstream delta and once with an intentional conflict or failing focused gate; prove downstream main advances only through the reviewed passing PR.
+- **Release proof:** Install a signed canary, update once, integrate one upstream sync, switch back to the previous signed fork, and complete AE10 before wider rollout.
 - **Security proof:** Give each profile a unique canary token and display-PII canary, exercise success and failure paths, and scan logs, traces, errors, JSON-RPC, task metadata, rollouts, SQLite, crash output, process/SSH/MCP/exec-child environments, recovery exports, and artifacts. Any credential material, unapproved email/organization/raw subject, or field outside the R12 allowlist blocks release.
 - **Distribution proof:** Before public artifacts, record service/OAuth authorization, neutral-name/trademark/non-endorsement review, Apache/NOTICE/change disclosures, third-party notices, and binary/site metadata inspection; private proof may proceed without publishing.
 
@@ -472,7 +477,7 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 | R13-R17 | U0 official-client gate, U4-U5 dual-auth assertions, and AE4, AE11 |
 | R18-R23 | U6 account-scheduler and U7 environment-parity tests plus AE5-AE8 |
 | R24 | U1-U2/U6 cross-process lifecycle and scheduler tests plus AE12 |
-| R25-R27 | U8 compatibility, provenance, license, and rollback checks |
+| R25-R28 | U8 upstream-sync, compatibility, provenance, license, and rollback checks plus AE14 |
 
 ---
 
@@ -486,6 +491,7 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 - All applicable automated and behavioral gates pass, including approved full-suite, generated-schema, migration/reindex, security, compatibility, and rollback checks.
 - The final diff contains no abandoned facade, second-home, token-sync, custom SSH transport, speculative fleet broker, or other dead-end implementation.
 - Documentation explains the three identities, enrollment on each owner host, lifecycle/control reassignment, canonical legacy binding, existing execution-environment behavior, Desktop launcher verification, canary rollout, two-slot rollback, and manual-only credential-free history recovery.
+- This plan and the reviewed downstream patch are merged into protected `novotny/main`. Daily upstream integration uses one temporary branch and reviewed PR with explicit upstream/downstream tips, affected-gate evidence, conflict stop conditions, and no force-push or unattended conflict resolution.
 
 ### Per Unit
 
@@ -497,4 +503,4 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 - **U5:** Official phone and Desktop local/SSH surfaces discover, follow, control, restart, and resume a secondary-executed ordinary task under the control identity, and control reassignment is atomic.
 - **U6:** Explicit/default/round-robin selection is deterministic, project-safe, quota-conservative, and concurrency-safe.
 - **U7:** Existing local/SSH environments provide sticky host execution without moving or duplicating the owning task.
-- **U8:** Stable-tag release, one verified Desktop/daemon launcher path, atomic signed-slot rollback, updater suppression, licensing, canary, and credential-free read-only history export are reproducible.
+- **U8:** Daily reviewed upstream integration, stable-tag release, one verified Desktop/daemon launcher path, atomic signed-slot rollback, updater suppression, licensing, canary, and credential-free read-only history export are reproducible.
