@@ -342,13 +342,13 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 
 ### U0. Provider-identity characterization and official-client vertical proof
 
-- **Goal:** Falsify the two load-bearing external assumptions before generalized storage, lifecycle, scheduler, and packaging work.
-- **Requirements:** R3, R8, R13-R17.
+- **Goal:** Falsify the two load-bearing external identity and official-client visibility assumptions, and characterize per-account usage telemetry before generalized storage, lifecycle, scheduler, and packaging work.
+- **Requirements:** R3, R8, R13-R17, R19.
 - **Dependencies:** None.
 - **Files:** Narrow spike changes in `codex-rs/app-server/src/lib.rs`, `codex-rs/app-server/src/in_process.rs`, `codex-rs/app-server/src/message_processor.rs`, `codex-rs/core/src/thread_manager.rs`, `codex-rs/protocol/src/protocol.rs`, and existing Remote Control auth/tests; a checked-in proof note under `docs/` records only redacted observations, not tokens or raw provider subjects.
-- **Approach:** First record the exact official-phone/Desktop surfaces for an ordinary primary-executed Remote Control task. In an isolated canary home and non-release development build, construct one primary control manager and one secondary execution identity, persist one ordinary task with a temporary opaque binding, and compare every R15 surface. Separately observe candidate provider subject/workspace claims across both subscriptions, two hosts, refresh, reauth, and workspace selection; choose a stable claim and derive a non-reversible host-local fingerprint. Keep only implementation that directly becomes U1-U5; drop spike-only code before U1 review.
-- **Test scenarios:** Primary baseline before/after phone connection; secondary task before/after connection; host discovery, owning-host list, task detail/control verbs, control-account Recent/Projects parity, connected-Desktop list/read/resume, restart, independent refresh, two hosts, two subjects, reauth, workspace changes, and an intentionally mismatched identity.
-- **Verification:** The real two-account canary proves identity uniqueness/stability and complete baseline parity with redacted evidence. If either fails, stop before U1 and present a reduced-scope or upstream-dependency decision; do not relabel a local-only subset as the completed product.
+- **Approach:** First record the exact official-phone/Desktop surfaces for an ordinary primary-executed Remote Control task. In an isolated canary home and non-release development build, construct one primary control manager and one secondary execution identity, persist one ordinary task with a temporary opaque binding, and compare every R15 surface. Separately observe candidate provider subject/workspace claims across both subscriptions, two hosts, refresh, reauth, and workspace selection; choose a stable claim and derive a non-reversible host-local fingerprint. Also characterize each subscription's service-reported rate-limit snapshots: record used percent and reset time for every reported window, prove attribution to the credential/provider fingerprint and workspace that produced it, and establish freshness from a service timestamp when available or local receipt time otherwise. Record absent, stale, and failed responses as unknown rather than unused capacity; this spike supplies evidence only, while persistence and routing behavior remain in U6. Keep only implementation that directly becomes U1-U5; drop spike-only code before U1 review.
+- **Test scenarios:** Primary baseline before/after phone connection; secondary task before/after connection; host discovery, owning-host list, task detail/control verbs, control-account Recent/Projects parity, connected-Desktop list/read/resume, restart, independent refresh, two hosts, two subjects, reauth, workspace changes, an intentionally mismatched identity, alternating requests under both accounts with distinguishable snapshots, every reported usage window, reset rollover, missing timestamps, stale/absent/failed snapshots, and workspace switching.
+- **Verification:** The real two-account canary proves identity uniqueness/stability, rate-limit field semantics and per-account attribution/freshness, and complete baseline parity with redacted evidence. If identity or visibility fails, stop before U1 and present a reduced-scope or upstream-dependency decision; unavailable telemetry remains unknown and cannot be treated as unused capacity.
 
 ### U1. Profile registry and isolated credential storage
 
@@ -489,7 +489,7 @@ Start with three parallel Luna Max workers where dependencies permit and keep on
 
 ### Per Unit
 
-- **U0:** Redacted evidence proves a stable provider-identity basis and official control-account surface parity before generalized work begins.
+- **U0:** Redacted evidence proves a stable provider-identity basis and official control-account surface parity, and characterizes per-account rate-limit telemetry before generalized work begins.
 - **U1:** Profiles isolate credentials under one home; path/keyring namespaces resist collision and traversal; legacy auth remains compatible; IDs are never reused.
 - **U2:** All lifecycle actions are available locally through app-server/CLI with identity, eligibility, affected-task, role, and human gates plus generated schemas.
 - **U3:** Every durable lifecycle path retains or recovers the exact fingerprinted task binding, including legacy continuation and crash/reindex paths.
